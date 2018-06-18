@@ -1,6 +1,6 @@
 Name:           cloud-init
 Version:        17.1
-Release:        5%{?dist}
+Release:        6%{?dist}
 Summary:        Cloud instance init scripts
 License:        ASL 2.0 or GPLv3
 URL:            http://launchpad.net/cloud-init
@@ -155,6 +155,9 @@ nosetests-%{python3_version} tests/unittests/
 
 
 %changelog
+* Mon Jun 18 2018 Miro Hrončok <mhroncok@redhat.com> - 17.1-6
+- Rebuilt for Python 3.7
+
 * Sat Apr 21 2018 Lars Kellogg-Stedman <lars@redhat.com> - 17.1-5
 - Enable dhcp on EC2 interfaces with only local ipv4 addresses [RH:1569321]
   (cherry pick upstream commit eb292c1)
