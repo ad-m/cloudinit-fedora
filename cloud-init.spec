@@ -1,6 +1,6 @@
 Name:           cloud-init
 Version:        17.1
-Release:        6%{?dist}
+Release:        7%{?dist}
 Summary:        Cloud instance init scripts
 License:        ASL 2.0 or GPLv3
 URL:            http://launchpad.net/cloud-init
@@ -155,6 +155,9 @@ nosetests-%{python3_version} tests/unittests/
 
 
 %changelog
+* Thu Jul 12 2018 Fedora Release Engineering <releng@fedoraproject.org> - 17.1-7
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_29_Mass_Rebuild
+
 * Mon Jun 18 2018 Miro Hrončok <mhroncok@redhat.com> - 17.1-6
 - Rebuilt for Python 3.7
 
