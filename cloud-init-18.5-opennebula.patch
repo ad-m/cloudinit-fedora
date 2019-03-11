@@ -1,0 +1,34 @@
+From d1a2fe7307e9cf2251d1f9a666c12d71d3f522d6 Mon Sep 17 00:00:00 2001
+From: Chad Smith <chad.smith@canonical.com>
+Date: Sat, 26 Jan 2019 15:06:42 +0000
+Subject: opennebula: exclude EPOCHREALTIME as known bash env variable with a
+ delta
+
+This branch is needed to allow cloud-init to sbuild on Ubuntu Disco.
+
+OpenNebula:parse_shell_config tries to do a comparison of bash
+environment values, excluding expected environment variables which
+are known to change.
+
+Bash on Ubuntu Disco surfaces a new EPOCHREALTIME environment variable
+which wasn't in previous bash environments, this var needs to be
+ignored by parse_shell_config too.
+
+LP: #1813383
+
+diff --git a/cloudinit/sources/DataSourceOpenNebula.py b/cloudinit/sources/DataSourceOpenNebula.py
+index e62e972..6e1d04b 100644
+--- a/cloudinit/sources/DataSourceOpenNebula.py
++++ b/cloudinit/sources/DataSourceOpenNebula.py
+@@ -337,7 +337,7 @@ def parse_shell_config(content, keylist=None, bash=None, asuser=None,
+     (output, _error) = util.subp(cmd, data=bcmd)
+ 
+     # exclude vars in bash that change on their own or that we used
+-    excluded = ("RANDOM", "LINENO", "SECONDS", "_", "__v")
++    excluded = ("EPOCHREALTIME", "RANDOM", "LINENO", "SECONDS", "_", "__v")
+     preset = {}
+     ret = {}
+     target = None
+-- 
+cgit v0.10.2
+

@@ -8,6 +8,10 @@ URL:            http://launchpad.net/cloud-init
 Source0:        https://launchpad.net/cloud-init/trunk/%{version}/+download/%{name}-%{version}.tar.gz
 Source1:        cloud-init-tmpfiles.conf
 
+# exclude EPOCHREALTIME as known bash env variable with a delta
+# https://bugs.launchpad.net/cloud-init/+bug/1813383
+Patch1:         cloud-init-18.5-opennebula.patch
+
 BuildArch:      noarch
 
 BuildRequires:  pkgconfig(systemd)
