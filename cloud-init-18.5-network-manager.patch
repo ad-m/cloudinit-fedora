@@ -1,0 +1,191 @@
+From 3861102fcaf47a882516d8b6daab518308eb3086 Mon Sep 17 00:00:00 2001
+From: Eduardo Otubo <otubo@redhat.com>
+Date: Fri, 18 Jan 2019 15:36:19 +0000
+Subject: net: Make sysconfig renderer compatible with Network Manager.
+
+The 'sysconfig' renderer is activated if, and only if, there's ifup and
+ifdown commands present in its search dictonary or the network-scripts
+configuration files are found. This patch adds a check for Network-
+Manager configuration file as well.
+
+This solution is based on the use of the plugin 'ifcfg-rh' present in
+Network-Manager and is designed to support Fedora 29 or other
+distributions that also replaced network-scripts by Network-Manager.
+
+diff --git a/cloudinit/net/sysconfig.py b/cloudinit/net/sysconfig.py
+index 17293e1..ae41f7b 100644
+--- a/cloudinit/net/sysconfig.py
++++ b/cloudinit/net/sysconfig.py
+@@ -10,11 +10,14 @@ from cloudinit.distros.parsers import resolv_conf
+ from cloudinit import log as logging
+ from cloudinit import util
+ 
++from configobj import ConfigObj
++
+ from . import renderer
+ from .network_state import (
+     is_ipv6_addr, net_prefix_to_ipv4_mask, subnet_is_ipv6)
+ 
+ LOG = logging.getLogger(__name__)
++NM_CFG_FILE = "/etc/NetworkManager/NetworkManager.conf"
+ 
+ 
+ def _make_header(sep='#'):
+@@ -46,6 +49,24 @@ def _quote_value(value):
+         return value
+ 
+ 
++def enable_ifcfg_rh(path):
++    """Add ifcfg-rh to NetworkManager.cfg plugins if main section is present"""
++    config = ConfigObj(path)
++    if 'main' in config:
++        if 'plugins' in config['main']:
++            if 'ifcfg-rh' in config['main']['plugins']:
++                return
++        else:
++            config['main']['plugins'] = []
++
++        if isinstance(config['main']['plugins'], list):
++            config['main']['plugins'].append('ifcfg-rh')
++        else:
++            config['main']['plugins'] = [config['main']['plugins'], 'ifcfg-rh']
++        config.write()
++        LOG.debug('Enabled ifcfg-rh NetworkManager plugins')
++
++
+ class ConfigMap(object):
+     """Sysconfig like dictionary object."""
+ 
+@@ -657,6 +678,8 @@ class Renderer(renderer.Renderer):
+             netrules_content = self._render_persistent_net(network_state)
+             netrules_path = util.target_path(target, self.netrules_path)
+             util.write_file(netrules_path, netrules_content, file_mode)
++        if available_nm(target=target):
++            enable_ifcfg_rh(util.target_path(target, path=NM_CFG_FILE))
+ 
+         sysconfig_path = util.target_path(target, templates.get('control'))
+         # Distros configuring /etc/sysconfig/network as a file e.g. Centos
+@@ -671,6 +694,13 @@ class Renderer(renderer.Renderer):
+ 
+ 
+ def available(target=None):
++    sysconfig = available_sysconfig(target=target)
++    nm = available_nm(target=target)
++
++    return any([nm, sysconfig])
++
++
++def available_sysconfig(target=None):
+     expected = ['ifup', 'ifdown']
+     search = ['/sbin', '/usr/sbin']
+     for p in expected:
+@@ -686,4 +716,10 @@ def available(target=None):
+     return True
+ 
+ 
++def available_nm(target=None):
++    if not os.path.isfile(util.target_path(target, path=NM_CFG_FILE)):
++        return False
++    return True
++
++
+ # vi: ts=4 expandtab
+diff --git a/tests/unittests/test_net.py b/tests/unittests/test_net.py
+index 195f261..d679e92 100644
+--- a/tests/unittests/test_net.py
++++ b/tests/unittests/test_net.py
+@@ -22,6 +22,7 @@ import os
+ import textwrap
+ import yaml
+ 
++
+ DHCP_CONTENT_1 = """
+ DEVICE='eth0'
+ PROTO='dhcp'
+@@ -1880,6 +1881,7 @@ class TestRhelSysConfigRendering(CiTestCase):
+ 
+     with_logs = True
+ 
++    nm_cfg_file = "/etc/NetworkManager/NetworkManager.conf"
+     scripts_dir = '/etc/sysconfig/network-scripts'
+     header = ('# Created by cloud-init on instance boot automatically, '
+               'do not edit.\n#\n')
+@@ -2174,6 +2176,75 @@ USERCTL=no
+         self._compare_files_to_expected(entry[self.expected_name], found)
+         self._assert_headers(found)
+ 
++    def test_check_ifcfg_rh(self):
++        """ifcfg-rh plugin is added NetworkManager.conf if conf present."""
++        render_dir = self.tmp_dir()
++        nm_cfg = util.target_path(render_dir, path=self.nm_cfg_file)
++        util.ensure_dir(os.path.dirname(nm_cfg))
++
++        # write a template nm.conf, note plugins is a list here
++        with open(nm_cfg, 'w') as fh:
++            fh.write('# test_check_ifcfg_rh\n[main]\nplugins=foo,bar\n')
++        self.assertTrue(os.path.exists(nm_cfg))
++
++        # render and read
++        entry = NETWORK_CONFIGS['small']
++        found = self._render_and_read(network_config=yaml.load(entry['yaml']),
++                                      dir=render_dir)
++        self._compare_files_to_expected(entry[self.expected_name], found)
++        self._assert_headers(found)
++
++        # check ifcfg-rh is in the 'plugins' list
++        config = sysconfig.ConfigObj(nm_cfg)
++        self.assertIn('ifcfg-rh', config['main']['plugins'])
++
++    def test_check_ifcfg_rh_plugins_string(self):
++        """ifcfg-rh plugin is append when plugins is a string."""
++        render_dir = self.tmp_path("render")
++        os.makedirs(render_dir)
++        nm_cfg = util.target_path(render_dir, path=self.nm_cfg_file)
++        util.ensure_dir(os.path.dirname(nm_cfg))
++
++        # write a template nm.conf, note plugins is a value here
++        util.write_file(nm_cfg, '# test_check_ifcfg_rh\n[main]\nplugins=foo\n')
++
++        # render and read
++        entry = NETWORK_CONFIGS['small']
++        found = self._render_and_read(network_config=yaml.load(entry['yaml']),
++                                      dir=render_dir)
++        self._compare_files_to_expected(entry[self.expected_name], found)
++        self._assert_headers(found)
++
++        # check raw content has plugin
++        nm_file_content = util.load_file(nm_cfg)
++        self.assertIn('ifcfg-rh', nm_file_content)
++
++        # check ifcfg-rh is in the 'plugins' list
++        config = sysconfig.ConfigObj(nm_cfg)
++        self.assertIn('ifcfg-rh', config['main']['plugins'])
++
++    def test_check_ifcfg_rh_plugins_no_plugins(self):
++        """enable_ifcfg_plugin creates plugins value if missing."""
++        render_dir = self.tmp_path("render")
++        os.makedirs(render_dir)
++        nm_cfg = util.target_path(render_dir, path=self.nm_cfg_file)
++        util.ensure_dir(os.path.dirname(nm_cfg))
++
++        # write a template nm.conf, note plugins is missing
++        util.write_file(nm_cfg, '# test_check_ifcfg_rh\n[main]\n')
++        self.assertTrue(os.path.exists(nm_cfg))
++
++        # render and read
++        entry = NETWORK_CONFIGS['small']
++        found = self._render_and_read(network_config=yaml.load(entry['yaml']),
++                                      dir=render_dir)
++        self._compare_files_to_expected(entry[self.expected_name], found)
++        self._assert_headers(found)
++
++        # check ifcfg-rh is in the 'plugins' list
++        config = sysconfig.ConfigObj(nm_cfg)
++        self.assertIn('ifcfg-rh', config['main']['plugins'])
++
+ 
+ class TestOpenSuseSysConfigRendering(CiTestCase):
+ 
+-- 
+cgit v0.10.2
+

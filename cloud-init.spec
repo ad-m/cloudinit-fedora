@@ -12,6 +12,9 @@ Source1:        cloud-init-tmpfiles.conf
 # https://bugs.launchpad.net/cloud-init/+bug/1813383
 Patch1:         cloud-init-18.5-opennebula.patch
 
+# Make sysconfig renderer compatible with Network Manager.
+Patch2:         cloud-init-18.5-network-manager.patch
+
 BuildArch:      noarch
 
 BuildRequires:  pkgconfig(systemd)
