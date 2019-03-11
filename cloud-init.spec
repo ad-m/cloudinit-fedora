@@ -1,27 +1,12 @@
 Name:           cloud-init
-Version:        17.1
-Release:        8%{?dist}
+Version:        18.5
+Release:        1%{?dist}
 Summary:        Cloud instance init scripts
 License:        ASL 2.0 or GPLv3
 URL:            http://launchpad.net/cloud-init
 
 Source0:        https://launchpad.net/cloud-init/trunk/%{version}/+download/%{name}-%{version}.tar.gz
 Source1:        cloud-init-tmpfiles.conf
-
-# Disable tests that require pylxd, which we don't have on Fedora
-Patch1:         cloud-init-17.1-disable-lxd-tests.patch
-
-# Do not write NM_CONTROLLED=no in generated interface config files
-# https://bugzilla.redhat.com/show_bug.cgi?id=1385172
-Patch2:         cloud-init-17.1-nm-controlled.patch
-
-# Keep old properties in /etc/sysconfig/network
-# https://bugzilla.redhat.com/show_bug.cgi?id=1558641
-Patch3:          cloud-init-17.1-no-override-default-network.patch
-
-# Enable dhcp for interfaces on EC2 instances with only local addresses.
-# https://bugzilla.redhat.com/show_bug.cgi?id=1569321
-Patch4:          cloud-init-17.1-fix-local-ipv4-only.patch
 
 BuildArch:      noarch
 
@@ -138,6 +123,7 @@ nosetests-%{python3_version} tests/unittests/
 %config(noreplace) %{_sysconfdir}/rsyslog.d/21-cloudinit.conf
 %{_sysconfdir}/NetworkManager/dispatcher.d/hook-network-manager
 %{_sysconfdir}/dhcp/dhclient-exit-hooks.d/hook-dhclient
+%{_sysconfdir}/bash_completion.d/cloud-init
 /lib/udev/rules.d/66-azure-ephemeral.rules
 %{_unitdir}/cloud-config.service
 %{_unitdir}/cloud-final.service
@@ -150,11 +136,15 @@ nosetests-%{python3_version} tests/unittests/
 %{python3_sitelib}/*
 %{_libexecdir}/%{name}
 %{_bindir}/cloud-init*
+%{_bindir}/cloud-id
 %dir /run/cloud-init
 %dir /var/lib/cloud
 
 
 %changelog
+* Mon Mar 11 2019 Adam Dobrawy <a.dobrawy@hyperone.com> - 18.5-1
+- Update to 18.5
+
 * Thu Jan 31 2019 Fedora Release Engineering <releng@fedoraproject.org> - 17.1-8
 - Rebuilt for https://fedoraproject.org/wiki/Fedora_30_Mass_Rebuild
 
